@@ -219,8 +219,16 @@ def create_venue_form():
 @app.route('/venues/create', methods=['POST'])
 def create_venue_submission():
   # DONE: insert form data as a new Venue record in the db, instead
+  form = VenueForm(meta={'csrf': False})
   # DONE: modify data to be the data object returned from db insertion
-  form = VenueForm()
+  if not form.validate():
+    message = []
+    for field, errors in form.errors.items():
+      for error in errors:
+        message.append(f"{field}: {error}")
+    flash('Please fix the following errors: ' + ', '.join(message))
+    return render_template('forms/new_venue.html', form=form)
+
   try:
     venue = Venue(
       name = form.name.data,
@@ -318,6 +326,7 @@ def show_artist(artist_id):
 @app.route('/artists/<int:artist_id>/edit', methods=['GET'])
 def edit_artist(artist_id):
   artist = Artist.query.get_or_404(artist_id)
+  artist.genres = json.loads(artist.genres) if artist.genres else []
   form = ArtistForm(obj=artist)
   # DONE: populate form with fields from artist with ID <artist_id>
   return render_template('forms/edit_artist.html', form=form, artist=artist)
@@ -327,7 +336,16 @@ def edit_artist_submission(artist_id):
   # DONE: take values from the form submitted, and update existing
   # artist record with ID <artist_id> using the new attributes
   artist = Artist.query.get_or_404(artist_id)
-  form = ArtistForm()
+  form = ArtistForm(meta={'csrf': False})
+
+  if not form.validate():
+    message = []
+    for field, errors in form.errors.items():
+      for error in errors:
+        message.append(f"{field}: {error}")
+    flash('Please fix the following errors: ' + ', '.join(message))
+    return render_template('forms/edit_artist.html', form=form, artist=artist)
+
   try:
     form.populate_obj(artist)
     artist.genres = json.dumps(form.genres.data)
@@ -336,6 +354,7 @@ def edit_artist_submission(artist_id):
   except SQLAlchemyError:
     db.session.rollback()
     flash('An error occurred. Artist ' + artist.name + ' could not updated.')
+    return render_template('forms/edit_artist.html', form=form, artist=artist)
   finally:
     db.session.close()
 
@@ -344,6 +363,7 @@ def edit_artist_submission(artist_id):
 @app.route('/venues/<int:venue_id>/edit', methods=['GET'])
 def edit_venue(venue_id):
   venue = Venue.query.get_or_404(venue_id)
+  venue.genres = json.loads(venue.genres) if venue.genres else []
   form = VenueForm(obj=venue)
 
   # DONE: populate form with values from venue with ID <venue_id>
@@ -354,7 +374,15 @@ def edit_venue_submission(venue_id):
   # DONE: take values from the form submitted, and update existing
   # venue record with ID <venue_id> using the new attributes
   venue = Venue.query.get_or_404(venue_id)
-  form = VenueForm()
+  form = VenueForm(meta={'csrf': False})
+
+  if not form.validate():
+    message = []
+    for field, errors in form.errors.items():
+      for error in errors:
+        message.append(f"{field}: {error}")
+    flash('Please fix the following errors: ' + ', '.join(message))
+    return render_template('forms/edit_venue.html', form=form, venue=venue)
 
   try:
     form.populate_obj(venue)
@@ -364,6 +392,7 @@ def edit_venue_submission(venue_id):
   except SQLAlchemyError:
     db.session.rollback()
     flash('An error occurred. Venue ' + venue.name + ' could not updated.')
+    return render_template('forms/edit_venue.html', form=form, venue=venue)
   finally:
     db.session.close()
 
@@ -380,9 +409,18 @@ def create_artist_form():
 @app.route('/artists/create', methods=['POST'])
 def create_artist_submission():
   # called upon submitting the new artist listing form
-  form = ArtistForm()
+  form = ArtistForm(meta={'csrf': False})
   # DONE: insert form data as a new Venue record in the db, instead
   # DONE: modify data to be the data object returned from db insertion
+
+  if not form.validate():
+    message = []
+    for field, errors in form.errors.items():
+      for error in errors:
+        message.append(f"{field}: {error}")
+    flash('Please fix the following errors: ' + ', '.join(message))
+    return render_template('forms/new_artist.html', form=form)
+
   try:
     artist = Artist(
       name = form.name.data,
@@ -403,8 +441,9 @@ def create_artist_submission():
     flash('Artist ' + artist.name + ' was successfully listed!')
   except SQLAlchemyError:
     # DONE: on unsuccessful db insert, flash an error instead.
-    flash('An error occurred. Artist ' + form.name.data + ' could not be listed.')
     db.session.rollback()
+    flash('An error occurred. Artist ' + form.name.data + ' could not be listed.')
+    return render_template('forms/new_artist.html', form=form)
   finally:
     db.session.close()
 
@@ -441,7 +480,16 @@ def create_shows():
 def create_show_submission():
   # called to create new shows in the db, upon submitting new show listing form
   # DONE: insert form data as a new Show record in the db, instead
-  form = ShowForm()
+  form = ShowForm(meta={'csrf': False})
+
+  if not form.validate():
+    message = []
+    for field, errors in form.errors.items():
+      for error in errors:
+        message.append(f"{field}: {error}")
+    flash('Please fix the following errors: ' + ', '.join(message))
+    return render_template('forms/new_show.html', form=form)
+
   try:
     show = Show(
       artist_id = form.artist_id.data,
@@ -458,6 +506,7 @@ def create_show_submission():
     # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
     flash('An error occurred. Show could not be listed.')
     db.session.rollback()
+    return render_template('forms/new_show.html', form=form)
   finally:
     db.session.close()
 
