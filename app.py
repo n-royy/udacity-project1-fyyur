@@ -97,6 +97,37 @@ class Artist(db.Model):
     seeking_description = db.Column(db.String(500))
     shows = db.relationship('Show', backref='Artist', lazy='joined', cascade='all, delete')
 
+    def num_upcoming_shows(self):
+      num_upcoming_shows = 0
+      if self.shows:
+        for show in self.shows:
+          if show.start_time > datetime.now():
+            num_upcoming_shows += 1
+      return num_upcoming_shows
+
+    def parse_shows(self):
+      self.past_shows = []
+      self.upcoming_shows = []
+      if self.shows:
+        now =  datetime.now()
+        for show in self.shows:
+          if show.start_time <= now:
+            self.past_shows.append({
+              'start_time': str(show.start_time),
+              'venue_id': show.Venue.id,
+              'venue_name': show.Venue.name,
+              'venue_image_link': show.Venue.image_link,
+            })
+          else:
+            self.upcoming_shows.append({
+              'start_time': str(show.start_time),
+              'venue_id': show.Venue.id,
+              'venue_name': show.Venue.name,
+              'venue_image_link': show.Venue.image_link,
+            })
+      self.past_shows_count = len(self.past_shows)
+      self.upcoming_shows_count = len(self.upcoming_shows)
+
     # DONE: implement any missing fields, as a database migration using Flask-Migrate
 
 # DONE Implement Show and Artist models, and complete all model relationships and properties, as a database migration.
@@ -172,7 +203,7 @@ def search_venues():
 def show_venue(venue_id):
   # shows the venue page with the given venue_id
   # DONE: replace with real venue data from the venues table, using venue_id
-  data = Venue.query.get(venue_id)
+  data = Venue.query.get_or_404(venue_id)
   data.genres = json.loads(data.genres) if data.genres else []
   data.parse_shows()
   return render_template('pages/show_venue.html', venue=data)
@@ -256,25 +287,29 @@ def artists():
 
 @app.route('/artists/search', methods=['POST'])
 def search_artists():
-  # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
+  # DONE: implement search on artists with partial string search. Ensure it is case-insensitive.
   # seach for "A" should return "Guns N Petals", "Matt Quevado", and "The Wild Sax Band".
   # search for "band" should return "The Wild Sax Band".
+  search_term = request.form.get('search_term', '')
+  artists = Artist.query.filter(Artist.name.ilike(f'%{search_term}%')).all()
   response={
-    "count": 1,
+    "count": len(artists),
     "data": [{
-      "id": 4,
-      "name": "Guns N Petals",
-      "num_upcoming_shows": 0,
-    }]
+      'id': artist.id,
+      'name': artist.name,
+      'num_upcoming_shows': artist.num_upcoming_shows(),
+    } for artist in artists]
   }
-  return render_template('pages/search_artists.html', results=response, search_term=request.form.get('search_term', ''))
+
+  return render_template('pages/search_artists.html', results=response, search_term=search_term)
 
 @app.route('/artists/<int:artist_id>')
 def show_artist(artist_id):
   # shows the artist page with the given artist_id
   # DONE: replace with real artist data from the artist table, using artist_id
-  data = Artist.query.get(artist_id)
-  data.genres = json.loads(data.genres)
+  data = Artist.query.get_or_404(artist_id)
+  data.genres = json.loads(data.genres) if data.genres else []
+  data.parse_shows()
 
   return render_template('pages/show_artist.html', artist=data)
 
@@ -282,27 +317,27 @@ def show_artist(artist_id):
 #  ----------------------------------------------------------------
 @app.route('/artists/<int:artist_id>/edit', methods=['GET'])
 def edit_artist(artist_id):
-  form = ArtistForm()
-  artist={
-    "id": 4,
-    "name": "Guns N Petals",
-    "genres": ["Rock n Roll"],
-    "city": "San Francisco",
-    "state": "CA",
-    "phone": "326-123-5000",
-    "website": "https://www.gunsnpetalsband.com",
-    "facebook_link": "https://www.facebook.com/GunsNPetals",
-    "seeking_venue": True,
-    "seeking_description": "Looking for shows to perform at in the San Francisco Bay Area!",
-    "image_link": "https://images.unsplash.com/photo-1549213783-8284d0336c4f?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=300&q=80"
-  }
-  # TODO: populate form with fields from artist with ID <artist_id>
+  artist = Artist.query.get_or_404(artist_id)
+  form = ArtistForm(obj=artist)
+  # DONE: populate form with fields from artist with ID <artist_id>
   return render_template('forms/edit_artist.html', form=form, artist=artist)
 
 @app.route('/artists/<int:artist_id>/edit', methods=['POST'])
 def edit_artist_submission(artist_id):
-  # TODO: take values from the form submitted, and update existing
+  # DONE: take values from the form submitted, and update existing
   # artist record with ID <artist_id> using the new attributes
+  artist = Artist.query.get_or_404(artist_id)
+  form = ArtistForm()
+  try:
+    form.populate_obj(artist)
+    artist.genres = json.dumps(form.genres.data)
+    db.session.commit()
+    flash('Artist ' + artist.name + ' was successfully updated!')
+  except SQLAlchemyError:
+    db.session.rollback()
+    flash('An error occurred. Artist ' + artist.name + ' could not updated.')
+  finally:
+    db.session.close()
 
   return redirect(url_for('show_artist', artist_id=artist_id))
 
